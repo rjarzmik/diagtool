@@ -1,0 +1,7 @@
+local_diag_socket: 127.0.0.1:0
+remote_diag_socket: 127.0.0.1:40400
+broadcast_diag_socket: 127.0.0.255:13400
+discover: false
+doip_local_addr: 0x00ed
+doip_target_addr: 0x0077
+uds_commands:

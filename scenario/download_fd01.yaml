@@ -1,0 +1,19 @@
+- !DisconnectDoIp
+  wait_after_ms: 10
+- !ReadDTC
+  dtc: 0x0a
+- !ReadDID
+  did: 0xf190
+- !RawUds
+  uds_bytes: 27 01
+- !RawUds
+  uds_bytes: 27 02 ee*128
+- !DisplaySetup
+  uds_requests: false
+  uds_responses: true
+- !TransferDownload
+  compression_method: 0
+  encrypt_method: 0
+  addr: 0xfd01
+  filename: scenario/pdx/FD01.bin
+- !AbortIfNrc
