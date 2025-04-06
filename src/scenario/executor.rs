@@ -42,6 +42,7 @@ fn execute_step<'b: 'a, 'a>(
                 }
             }
             DisconnectDoIp(disc) => disconnect_doip(ctxt, disc).await?,
+            EvalExpr(expr) => eval_expr(ctxt, expr)?,
             PrintLastReply => print_last_reply(ctxt),
             RawUds(ruds) => uds_raw(ctxt, ruds).await?,
             ReadDID(did) => read_did(ctxt, did).await?,
@@ -274,6 +275,14 @@ async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), Sc
     let uds = UdsMessage::WriteDIDReq(req);
     request_response(ctxt, uds).await
 }
+
+fn eval_expr(ctxt: &mut Context, expr: &parser::EvalExpr) -> Result<(), ScenarioError> {
+    expr.expression
+        .compiled
+        .eval_empty_with_context_mut(&mut ctxt.eval_expr.ctxt)?;
+    Ok(())
+}
+
 struct EvalExprContext {
     ctxt: HashMapContext<DefaultNumericTypes>,
     reply: Arc<Mutex<Vec<u8>>>,

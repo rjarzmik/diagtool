@@ -19,6 +19,7 @@ struct Scenario {
 pub enum Step {
     AbortIfNrc(AbortIfNrc),
     DisconnectDoIp(DisconnectDoIp),
+    EvalExpr(EvalExpr),
     PrintLastReply,
     RawUds(RawUds),
     ReadDID(ReadDID),
@@ -36,6 +37,12 @@ pub struct AbortIfNrc {
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct DisconnectDoIp {
     pub wait_after_ms: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct EvalExpr {
+    #[serde(with = "evalexpression")]
+    pub expression: evalexpression::Expression,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -228,8 +235,12 @@ mod test {
         });
         */
         let step6 = Step::AbortIfNrc(AbortIfNrc { nrc: None });
+        let step7 = Step::EvalExpr(EvalExpr {
+            expression: evalexpression::Expression::try_from("a = 1;").unwrap(),
+        });
+
         let scenario = Scenario {
-            steps: vec![step1, step2, step3, step4, step6],
+            steps: vec![step1, step2, step3, step4, step6, step7],
         };
         to_writer(&io::stdout(), &scenario).unwrap();
     }
