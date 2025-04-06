@@ -1,9 +1,11 @@
 use log::info;
+use std::future::Future;
 use std::io::Read;
+use std::pin::Pin;
 use tokio::time::{self, Duration};
 
 use super::doip_ops::ScenarioMessage;
-use super::parser::{self, DisconnectDoIp};
+use super::parser::{self, DisconnectDoIp, Step};
 use super::{error::ScenarioError, parser::AbortIfNrc};
 use tokio::sync::mpsc;
 use uds_rw::{
@@ -17,6 +19,44 @@ struct Context {
     rx: mpsc::Receiver<ScenarioMessage>,
 }
 
+fn execute_step<'b: 'a, 'a>(
+    ctxt: &'a mut Context,
+    step: &'b Step,
+) -> Pin<Box<dyn Future<Output = Result<bool, ScenarioError>> + 'a>> {
+    Box::pin(async move {
+        let mut abort = false;
+        use parser::Step::*;
+        match step {
+            AbortIfNrc(anrc) => {
+                if abort_if_nrc(ctxt, anrc) {
+                    println!("Abort if NRC condition met, aborting scenario.");
+                    abort = true;
+                }
+            }
+            DisconnectDoIp(disc) => disconnect_doip(ctxt, disc).await?,
+            PrintLastReply => print_last_reply(ctxt),
+            RawUds(ruds) => uds_raw(ctxt, ruds).await?,
+            ReadDID(did) => read_did(ctxt, did).await?,
+            ReadSupportedDTC(dtc) => read_supported_dtc(ctxt, dtc).await?,
+            SleepMs(time_ms) => sleep_ms(ctxt, *time_ms).await?,
+            WriteDID(did) => write_did(ctxt, did).await?,
+            TransferDownload(td) => transfer_download(ctxt, td).await?,
+        };
+        Ok(abort)
+    })
+}
+
+async fn execute_steps(ctxt: &mut Context, steps: &Vec<Step>) -> Result<bool, ScenarioError> {
+    let mut abort = false;
+    for step in steps {
+        abort = execute_step(ctxt, step).await?;
+        if abort {
+            break;
+        }
+    }
+    Ok(abort)
+}
+
 pub async fn execute(
     steps: parser::Steps,
     tx: mpsc::Sender<ScenarioMessage>,
@@ -27,25 +67,8 @@ pub async fn execute(
         rx,
         tx,
     };
-    for step in steps {
-        use parser::Step::*;
-        match step {
-            AbortIfNrc(anrc) => {
-                if abort_if_nrc(&ctxt, anrc) {
-                    println!("Abort if NRC condition met, aborting scenario.");
-                    break;
-                }
-            }
-            DisconnectDoIp(disc) => disconnect_doip(&mut ctxt, disc).await?,
-            PrintLastReply => print_last_reply(&ctxt),
-            RawUds(ruds) => uds_raw(&mut ctxt, ruds).await?,
-            ReadDID(did) => read_did(&mut ctxt, did).await?,
-            ReadSupportedDTC(dtc) => read_supported_dtc(&mut ctxt, dtc).await?,
-            SleepMs(time_ms) => sleep_ms(&mut ctxt, time_ms).await?,
-            WriteDID(did) => write_did(&mut ctxt, did).await?,
-            TransferDownload(td) => transfer_download(&mut ctxt, td).await?,
-        }
-    }
+
+    let _ = execute_steps(&mut ctxt, &steps).await;
     Ok(())
 }
 
@@ -72,7 +95,7 @@ async fn sleep_ms(ctxt: &mut Context, sleep_ms: usize) -> Result<(), ScenarioErr
     Ok(())
 }
 
-async fn disconnect_doip(ctxt: &mut Context, disc: DisconnectDoIp) -> Result<(), ScenarioError> {
+async fn disconnect_doip(ctxt: &mut Context, disc: &DisconnectDoIp) -> Result<(), ScenarioError> {
     let _ = ctxt.tx.send(ScenarioMessage::DisconnectReconnectReq).await;
     if let Some(wait_after_ms) = disc.wait_after_ms {
         time::sleep(Duration::from_millis(wait_after_ms as u64)).await;
@@ -85,7 +108,7 @@ async fn disconnect_doip(ctxt: &mut Context, disc: DisconnectDoIp) -> Result<(),
     Ok(())
 }
 
-fn abort_if_nrc(ctxt: &Context, anrc: AbortIfNrc) -> bool {
+fn abort_if_nrc(ctxt: &Context, anrc: &AbortIfNrc) -> bool {
     if let UdsMessage::Nrc(unrc) = &ctxt.last_uds_reply {
         let nrc = unrc.nrc;
         match anrc.nrc {
@@ -117,9 +140,9 @@ fn expect_reply(ctxt: &Context, request_sid: u8) -> Result<(), ScenarioError> {
 
 async fn transfer_download(
     ctxt: &mut Context,
-    td: parser::TransferDownload,
+    td: &parser::TransferDownload,
 ) -> Result<(), ScenarioError> {
-    let mut file = std::fs::File::open(td.filename)?;
+    let mut file = std::fs::File::open(&td.filename)?;
     let req = message::RequestDownloadReq {
         compression_method: td.compression_method,
         encryption_method: td.encrypt_method,
@@ -204,15 +227,15 @@ async fn request_response(ctxt: &mut Context, uds: UdsMessage) -> Result<(), Sce
     Ok(())
 }
 
-async fn uds_raw(ctxt: &mut Context, ruds: parser::RawUds) -> Result<(), ScenarioError> {
+async fn uds_raw(ctxt: &mut Context, ruds: &parser::RawUds) -> Result<(), ScenarioError> {
     let req = message::RawUds {
-        data: ruds.uds_bytes,
+        data: ruds.uds_bytes.clone(),
     };
     let uds = UdsMessage::RawUds(req);
     request_response(ctxt, uds).await
 }
 
-async fn read_did(ctxt: &mut Context, rdid: parser::ReadDID) -> Result<(), ScenarioError> {
+async fn read_did(ctxt: &mut Context, rdid: &parser::ReadDID) -> Result<(), ScenarioError> {
     let req = message::ReadDIDReq { did: rdid.did };
     let uds = UdsMessage::ReadDIDReq(req);
     request_response(ctxt, uds).await
@@ -220,7 +243,7 @@ async fn read_did(ctxt: &mut Context, rdid: parser::ReadDID) -> Result<(), Scena
 
 async fn read_supported_dtc(
     ctxt: &mut Context,
-    _rdtc: parser::ReadSupportedDTC,
+    _rdtc: &parser::ReadSupportedDTC,
 ) -> Result<(), ScenarioError> {
     let req = message::ReadDTCReq {
         sub: message::DTCReqSubfunction::ReportSupportedDTC,
@@ -229,14 +252,14 @@ async fn read_supported_dtc(
     request_response(ctxt, uds).await
 }
 
-async fn write_did(ctxt: &mut Context, wdid: parser::WriteDID) -> Result<(), ScenarioError> {
+async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), ScenarioError> {
     let data = match wdid.data {
-        parser::FileOrRawBytes::Bytes(bytes) => bytes,
-        parser::FileOrRawBytes::BinFileName(bytes) => bytes,
+        parser::FileOrRawBytes::Bytes(ref bytes) => bytes,
+        parser::FileOrRawBytes::BinFileName(ref bytes) => bytes,
     };
     let req = message::WriteDIDReq {
         did: wdid.did,
-        user_data: data,
+        user_data: data.to_vec(),
     };
     let uds = UdsMessage::WriteDIDReq(req);
     request_response(ctxt, uds).await
