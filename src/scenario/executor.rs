@@ -48,6 +48,12 @@ fn execute_step<'b: 'a, 'a>(
             ReadDID(did) => read_did(ctxt, did).await?,
             ReadSupportedDTC(dtc) => read_supported_dtc(ctxt, dtc).await?,
             SleepMs(time_ms) => sleep_ms(ctxt, *time_ms).await?,
+            WhileLoop(wl) => {
+                if while_loop(ctxt, wl).await? {
+                    println!("While loop aborted scenario.");
+                    abort = true;
+                }
+            }
             WriteDID(did) => write_did(ctxt, did).await?,
             TransferDownload(td) => transfer_download(ctxt, td).await?,
         };
@@ -281,6 +287,23 @@ fn eval_expr(ctxt: &mut Context, expr: &parser::EvalExpr) -> Result<(), Scenario
         .compiled
         .eval_empty_with_context_mut(&mut ctxt.eval_expr.ctxt)?;
     Ok(())
+}
+
+async fn while_loop(ctxt: &mut Context, wl: &parser::WhileLoop) -> Result<bool, ScenarioError> {
+    let mut abort = false;
+    while !abort {
+        let cond = wl
+            .condition
+            .compiled
+            .eval_boolean_with_context_mut(&mut ctxt.eval_expr.ctxt)
+            .map_err(|err| ScenarioError::EvalExpr(wl.condition.str.clone(), err))?;
+        if cond {
+            abort = execute_steps(ctxt, &wl.steps).await?;
+        } else {
+            break;
+        }
+    }
+    Ok(abort)
 }
 
 struct EvalExprContext {

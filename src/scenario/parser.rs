@@ -25,6 +25,7 @@ pub enum Step {
     ReadDID(ReadDID),
     ReadSupportedDTC(ReadSupportedDTC),
     SleepMs(usize),
+    WhileLoop(WhileLoop),
     WriteDID(WriteDID),
     TransferDownload(TransferDownload),
 }
@@ -72,6 +73,13 @@ pub struct TransferDownload {
     pub addr: usize,
     pub filename: String,
     pub memorysize: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct WhileLoop {
+    #[serde(with = "evalexpression")]
+    pub condition: evalexpression::Expression,
+    pub steps: Steps,
 }
 
 pub fn read_scenario(filename: &str) -> Steps {
@@ -238,9 +246,19 @@ mod test {
         let step7 = Step::EvalExpr(EvalExpr {
             expression: evalexpression::Expression::try_from("a = 1;").unwrap(),
         });
+        let step8 = Step::WhileLoop(WhileLoop {
+            condition: evalexpression::Expression::try_from("a < 3;").unwrap(),
+            steps: vec![
+                Step::ReadDID(ReadDID { did: 0xf190 }),
+                Step::ReadDID(ReadDID { did: 0xf191 }),
+                Step::EvalExpr(EvalExpr {
+                    expression: evalexpression::Expression::try_from("a = a + 1;").unwrap(),
+                }),
+            ],
+        });
 
         let scenario = Scenario {
-            steps: vec![step1, step2, step3, step4, step6, step7],
+            steps: vec![step1, step2, step3, step4, step6, step7, step8],
         };
         to_writer(&io::stdout(), &scenario).unwrap();
     }
