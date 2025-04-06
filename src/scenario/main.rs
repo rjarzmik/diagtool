@@ -51,6 +51,5 @@ pub async fn scenario(
         }
     });
 
-    super::executor::execute(steps, req_tx, rsp_rx).await?;
-    Ok(())
+    super::executor::execute(steps, req_tx, rsp_rx).await
 }

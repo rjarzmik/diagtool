@@ -1,8 +1,8 @@
-use log::info;
 use evalexpr::{
     context_map, ContextWithMutableVariables, DefaultNumericTypes, EvalexprError, HashMapContext,
     Value,
 };
+use log::{debug, info};
 use pretty_hex::pretty_hex;
 use std::future::Future;
 use std::io::{self, Read};
@@ -34,6 +34,8 @@ fn execute_step<'b: 'a, 'a>(
     Box::pin(async move {
         let mut abort = false;
         use parser::Step::*;
+
+        debug!("Executing step: {step:?}");
         match step {
             AbortIfNrc(anrc) => {
                 if abort_if_nrc(ctxt, anrc) {
@@ -84,8 +86,7 @@ pub async fn execute(
         eval_expr: EvalExprContext::new(),
     };
 
-    let _ = execute_steps(&mut ctxt, &steps).await;
-    Ok(())
+    execute_steps(&mut ctxt, &steps).await.map(|_| ())
 }
 
 async fn sleep_ms(ctxt: &mut Context, sleep_ms: usize) -> Result<(), ScenarioError> {
@@ -285,7 +286,8 @@ async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), Sc
 fn eval_expr(ctxt: &mut Context, expr: &parser::EvalExpr) -> Result<(), ScenarioError> {
     expr.expression
         .compiled
-        .eval_empty_with_context_mut(&mut ctxt.eval_expr.ctxt)?;
+        .eval_empty_with_context_mut(&mut ctxt.eval_expr.ctxt)
+        .map_err(|err| ScenarioError::EvalExpr(expr.expression.str.clone(), err))?;
     Ok(())
 }
 

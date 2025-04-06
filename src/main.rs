@@ -42,7 +42,7 @@ async fn discover_doip_entities(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), scenario::error::ScenarioError> {
+async fn main() {
     use log::LevelFilter;
     let args = argparse::get_args();
 
@@ -59,7 +59,9 @@ async fn main() -> Result<(), scenario::error::ScenarioError> {
     }
 
     if args.discover {
-        discover_doip_entities(args.local_addr, args.broadcast_addr).await?;
+        discover_doip_entities(args.local_addr, args.broadcast_addr)
+            .await
+            .unwrap();
     }
 
     let mut steps = vec![];
@@ -87,7 +89,8 @@ async fn main() -> Result<(), scenario::error::ScenarioError> {
         args.doip_ta,
         steps,
     )
-    .await?;
-
-    Ok(())
+    .await
+    .unwrap_or_else(|err| {
+        panic!("Scenario aborted due to an error: {err}");
+    });
 }
