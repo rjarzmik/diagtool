@@ -1,3 +1,4 @@
+use evalexpr::EvalexprError;
 use thiserror::Error;
 use uds_rw::{UdsError, UdsMessage};
 
@@ -15,4 +16,6 @@ pub enum ScenarioError {
     Nrc(u8),
     #[error("Unexpected UDS message received: {0:?}")]
     UnexpectedUdsMessage(UdsMessage),
+    #[error("Error in evaluation of \"{0}\": {1}")]
+    EvalExpr(String, EvalexprError),
 }

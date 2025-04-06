@@ -1,8 +1,15 @@
 use log::info;
+use evalexpr::{
+    context_map, ContextWithMutableVariables, DefaultNumericTypes, EvalexprError, HashMapContext,
+    Value,
+};
+use pretty_hex::pretty_hex;
 use std::future::Future;
-use std::io::Read;
+use std::io::{self, Read};
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use tokio::time::{self, Duration};
+use uds_rw::uds_write;
 
 use super::doip_ops::ScenarioMessage;
 use super::parser::{self, DisconnectDoIp, Step};
@@ -17,6 +24,7 @@ struct Context {
     last_uds_reply: UdsMessage,
     tx: mpsc::Sender<ScenarioMessage>,
     rx: mpsc::Receiver<ScenarioMessage>,
+    eval_expr: EvalExprContext,
 }
 
 fn execute_step<'b: 'a, 'a>(
@@ -66,6 +74,7 @@ pub async fn execute(
         last_uds_reply: UdsMessage::RawUds(message::RawUds { data: vec![] }),
         rx,
         tx,
+        eval_expr: EvalExprContext::new(),
     };
 
     let _ = execute_steps(&mut ctxt, &steps).await;
@@ -209,6 +218,7 @@ async fn request_response(ctxt: &mut Context, uds: UdsMessage) -> Result<(), Sce
             }
             ScenarioMessage::Uds(rsp) => {
                 info!(target: "uds", "Rx UDS: {rsp}");
+                ctxt.eval_expr.set_reply(&rsp);
                 ctxt.last_uds_reply = rsp;
                 let reply = &ctxt.last_uds_reply;
                 if let UdsMessage::Nrc(rnrc) = reply {
@@ -263,4 +273,101 @@ async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), Sc
     };
     let uds = UdsMessage::WriteDIDReq(req);
     request_response(ctxt, uds).await
+}
+struct EvalExprContext {
+    ctxt: HashMapContext<DefaultNumericTypes>,
+    reply: Arc<Mutex<Vec<u8>>>,
+}
+
+impl EvalExprContext {
+    pub fn new() -> Self {
+        let reply = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let reply_c1 = reply.clone();
+        let ctxt: HashMapContext<DefaultNumericTypes> = context_map! {
+            "reply_nth" => Function::new(move |argument| {
+                if let Ok(int) = argument.as_int() {
+                    reply_c1.lock().unwrap().get(int as usize)
+			.map(|v| Value::Int((*v) as i64))
+			.ok_or(EvalexprError::OutOfBoundsAccess)
+                } else {
+                    Err(EvalexprError::expected_int(argument.clone()))
+                }
+            }),
+            "print" => Function::new(move |argument| {
+                let s : String = match argument {
+                    Value::String(s) => s.to_owned(),
+                    Value::Float(f) => (f as &f64).to_string(),
+                    Value::Int(i) => (i as &i64).to_string(),
+                    Value::Boolean(b) => b.to_string(),
+                    Value::Tuple(vec) => {
+			let v = Self::value_to_bytes(vec);
+			pretty_hex(&v)},
+                    Value::Empty => "".to_string(),
+                };
+                println!("{s}");
+                Ok(Value::Empty)}),
+	    "loadfile" => Function::new(move |argument| {
+                if let Ok(s) = &argument.as_string() {
+		    if let Some(v) = Self::load_file(s) {
+			Ok(Value::Tuple(v.iter().map(|b| Value::<DefaultNumericTypes>::from_int(*b as i64)).collect()))
+		    } else {
+			Err(EvalexprError::CustomMessage(format!("Can't load file {s}")))
+		    }
+		} else {
+                    Err(EvalexprError::expected_string(argument.clone()))
+		}
+	    }),
+        }
+        .unwrap();
+        Self { ctxt, reply }
+    }
+
+    pub fn set_reply(&mut self, uds_reply: &UdsMessage) {
+        let mut reply: Vec<u8> = vec![];
+        uds_write(&mut reply, uds_reply).unwrap();
+        let _ = self.ctxt.set_value(
+            "reply".to_string(),
+            Value::Tuple(reply.iter().map(|r| Value::Int(*r as i64)).collect()),
+        );
+        *self.reply.lock().unwrap() = reply;
+    }
+
+    pub fn get_tuple_variable(&self, varname: &str) -> Result<Vec<u8>, io::Error> {
+        use evalexpr::Context;
+        self.ctxt
+            .get_value(varname)
+            .and_then(|varvalue| match varvalue {
+                Value::Tuple(vec) => Some(Self::value_to_bytes(vec)),
+                Value::String(s) => Some(s.as_bytes().to_vec()),
+                _ => None,
+            })
+            .ok_or(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Evalexpr variable {varname} doesn't exist."),
+            ))
+    }
+
+    fn load_file(filename: &str) -> Option<Vec<u8>> {
+        std::fs::read(filename).ok()
+    }
+
+    fn flat_vec(input: &[Value]) -> Vec<Value> {
+        input
+            .iter()
+            .flat_map(|v| match v {
+                Value::String(ref s) => {
+                    s.as_bytes().iter().map(|b| Value::Int(*b as i64)).collect()
+                }
+                Value::Tuple(tuple) => Self::flat_vec(tuple),
+                o => vec![o.clone()],
+            })
+            .collect()
+    }
+
+    fn value_to_bytes(input: &[Value]) -> Vec<u8> {
+        Self::flat_vec(input)
+            .iter()
+            .map(|v| if let Value::Int(i) = v { *i as u8 } else { 0 })
+            .collect::<Vec<u8>>()
+    }
 }

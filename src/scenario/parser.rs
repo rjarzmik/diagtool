@@ -164,6 +164,46 @@ mod bytes_bin_file {
     }
 }
 
+mod evalexpression {
+    use evalexpr;
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    #[derive(Debug, PartialEq)]
+    pub struct Expression {
+        pub str: String,
+        pub compiled: evalexpr::Node<evalexpr::DefaultNumericTypes>,
+    }
+
+    impl TryFrom<&str> for Expression {
+        type Error = String;
+
+        fn try_from(s: &str) -> Result<Self, Self::Error> {
+            let compiled = evalexpr::build_operator_tree(s)
+                .map_err(|err| format!("parse evalexpr: \"{s}\": {err}"))?;
+            Ok(Expression {
+                str: s.to_owned(),
+                compiled,
+            })
+        }
+    }
+
+    pub fn serialize<S>(expr: &Expression, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_str(&expr.str)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Expression, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = String::deserialize(deserializer)?;
+        Expression::try_from(s.as_str()).map_err(|err| {
+            serde::de::Error::custom(format!("Cannot parse evalexpr: \"{s}\": {err}"))
+        })
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;
