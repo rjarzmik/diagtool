@@ -1,0 +1,15 @@
+# DisconnectDoIp
+#
+# Primitive to force a DoIP disconnection. The DoIP communication will be
+# attempted to reconnect automatically either after a duration or immediately.
+#
+# This primitive is usefull after ordering an ECU to reboot, such as with an UDS
+# command "10 02", if the remote ECU doesn't break properly the TCP/DoIP socket.
+
+# Form 1: Disconnect, wait 1 second, as try to reconnect after.
+- !DisconnectDoIp
+  wait_after_ms: 1000
+
+# Form 2: Disconnect, and immediately try to reconnect.
+- !DisconnectDoIp
+  wait_after_ms: null

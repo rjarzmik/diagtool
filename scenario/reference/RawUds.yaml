@@ -1,0 +1,10 @@
+# RawUds
+#
+# Send an UDS command of bytes rather than something like ReadDID,...
+#
+# This enables any kind of UDS command, even these not representing an actual
+# UDS command. This is also another way to do a ReadDiD or WriteDiD command.
+
+# Form 1: Equivalent of ReadDID did: 0xf190
+- !RawUds
+  uds_bytes: 22 f1 90

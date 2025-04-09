@@ -1,0 +1,6 @@
+# SleepMs
+#
+# Sleeps for a duration, doing nothing.
+
+# Form 1: Sleep 1.2 seconds.
+- !SleepMs 1200

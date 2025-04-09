@@ -1,0 +1,10 @@
+- !ReadDID
+  did: 0xf190
+- !WhileLoop
+  condition: reply_nth(0) == 0x62
+  steps:
+  - !ReadDID
+    did: 0xf190
+  - !EvalExpr
+    expression: print(reply)
+  - !SleepMs 1000

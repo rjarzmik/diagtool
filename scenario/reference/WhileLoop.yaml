@@ -1,0 +1,33 @@
+# WhileLoop
+#
+# Primitive to loop over a condition.
+#
+# This is the main user of expression of evalexpr. It enables to loop over a
+# condition executing steps in the loop.
+#
+# The condition must be a evalexpr returning a boolean, such as :
+#  - reply_nth(3) == 0x40
+#  - true
+#  - (a < 3) && (len(reply) >= 3) && (reply_nth(2) == 0x40)
+#
+# The allowed steps are the same as in the main scenario, allowing therefore
+# nested loops, etc..
+#
+# For more information, check https://docs.rs/evalexpr/latest/evalexpr/.
+
+# Form 1: a for loop reading a DID 2 times
+- !WhileLoop
+  condition: a < 3
+  steps:
+  - !ReadDID
+    did: 0xf190
+  - !EvalExpr
+    expression: a = a + 1;
+
+# Form 2: a while loop, waiting for a read DID to return a speciifc value
+- !WhileLoop
+  condition: (reply_nth(0) & 0x40) == 0x40
+  steps:
+  - !ReadDID
+    did: 0xf190
+  - !SleepMs 1000

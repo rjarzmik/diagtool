@@ -1,8 +1,0 @@
-- !ReadDTC
-  dtc: 0x0a
-- !TransferDownload
-  compression_method: 1
-  encrypt_method: 0
-  addr: 0xfd01
-  filename: FD01.bin
-

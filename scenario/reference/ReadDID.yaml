@@ -1,0 +1,7 @@
+# ReadDID
+#
+# Reads a specific DID
+
+# Form 1: Read a DID.
+- !ReadDID
+  did: 0xf190

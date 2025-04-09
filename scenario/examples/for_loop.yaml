@@ -1,0 +1,12 @@
+- !EvalExpr
+  expression: a = 1;
+- !WhileLoop
+  condition: a < 3
+  steps:
+  - !ReadDID
+    did: 0xf190
+  - !PrintLastReply
+  - !ReadDID
+    did: 0xf191
+  - !EvalExpr
+    expression: a = a + 1;

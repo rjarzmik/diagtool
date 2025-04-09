@@ -1,0 +1,10 @@
+- !ReadDID
+  did: 0xf190
+- !EvalExpr
+  expression: print reply
+- !EvalExpr
+  expression: print(reply_nth(0))
+- !EvalExpr
+  expression: print reply_nth 0
+- !EvalExpr
+  expression: print(reply_nth(0) == 0x62)

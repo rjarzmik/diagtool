@@ -1,0 +1,42 @@
+# EvalExpr
+#
+# Primitive to evaluate an expression, and act upon it.
+#
+# The context of evaluation is kept through the whole scenario, so assigning a
+# variable a to a value 10 in one EvalExpr can be reused several EvalExpr later,
+# and a will still have a 10 value.
+#
+# It must also be understood that the expression of EvalExpr shouldn't produce a
+# value. Therefore, an expression such as "a = 10;" is correct, but "a"
+# isn't. Likewise, "a = 10; a = a + 1;" is correct, but "a = 10; a == 10" isn't.
+#
+# There is one variable with is assigned after each UDS command :
+# "reply". "reply" variable will always contain a vector of bytes of the last
+# UDS response received.
+#
+# For more information, check https://docs.rs/evalexpr/latest/evalexpr/.
+
+# Form 1: Increment a.
+- !EvalExpr
+  expression: a = a + 1;
+
+# Form 2: Print a value (here last UDS reply).
+- !EvalExpr
+  expression: print(reply)
+
+# Form 3: Special function reply_nth(index) which gives byte of this index in
+#         the vector reply.
+- !EvalExpr
+  expression: print(reply_nth(0))
+
+# Form 4; Multiple expressions
+- !EvalExpr
+  expression: a = a + 1; print(a);
+
+# Form 5: Boolean expression (to be only used in WhileLoop)
+- !EvalExpr
+  expression: reply_nth(0) == 0x62
+
+# Form 6: File loading
+- !EvalExpr
+  expression: vin = loadfile("vin.bin"); print(vin);

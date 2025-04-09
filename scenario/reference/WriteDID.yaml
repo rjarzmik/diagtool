@@ -1,0 +1,24 @@
+# WriteDID
+#
+# Writes a specific DID.
+#
+# The DID value can either be specified, or read back from a file. The file is
+# read when executing the instruction, meaning that if the file changes between
+# 2 WriteDID, the written DID will be different.
+
+# Form 1: Write a DID with an exact immediate value.
+- !WriteDID
+  did: 0xf190
+  data: !Bytes 56 46 31 46 52 53 59 53 42 45 4e 43 48 30 31
+
+# Form 2: Write a DID with an exact value read from a file.
+#         Be aware that the file is taken byte by byte. Therefore a terminating
+#         \n will result in a byte of value 10.
+- !WriteDID
+  did: 0xf190
+  data: !BinFileName toto.bin
+
+# Form 3: Write a DID from an EvalExpr variable value.
+- !WriteDID
+  did: 61840
+  data: !EvalExprVarname vin

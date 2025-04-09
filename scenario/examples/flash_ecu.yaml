@@ -1,0 +1,39 @@
+# Scenrio of flashing through UDS
+#
+# This is a standard flashing procedure for an ECU.
+
+# Switch to regprogramming mode
+- !RawUds
+  data: !Bytes 10 03
+- !RawUds
+  data: !Bytes 27 01
+- !RawUds
+  data: !Bytes 27 02 ff*256
+- !RawUds
+  data: !Bytes 10 02
+
+# Handle ECU not disconnecting or responding to TCP FIN
+- !DisconnectDoIp
+  wait_after_ms: 10
+
+# Print the DTCs raised on the ECU
+- !RawUds
+  data: !Bytes 19 0a
+- PrintLastReply
+
+# Print the current VIN
+- !ReadDID
+  did: 0xf190
+- PrintLastReply
+
+# Upload the new firmware through TransferStart/TransferData*/TransferExit
+- !TransferDownload
+  compression_method: 0
+  encrypt_method: 0
+  addr: 0xfd01
+  filename: scenario/pdx/FD01.bin
+- !AbortIfNrc
+
+# Reboot in normal mode
+- !RawUds
+  data: !Bytes 10 01

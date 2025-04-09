@@ -1,0 +1,12 @@
+# AbortIfNrc
+#
+# Primitive to abort the current scenario if the last reply was an NRC.
+
+# Form 1: abort the scenario if a specific NRC was received.
+#         Below, the scenario is aborted if the NRC 0x10 was received.
+- !AbortIfNrc
+  nrc: 16
+
+# Form 2: abort the scenario if any NRC was received.
+- !AbortIfNrc
+  nrc: null

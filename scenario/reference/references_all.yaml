@@ -1,0 +1,50 @@
+- !AbortIfNrc
+  nrc: 16
+- !AbortIfNrc
+  nrc: null
+- !DisconnectDoIp
+  wait_after_ms: 1000
+- !DisconnectDoIp
+  wait_after_ms: null
+- !EvalExpr
+  expression: a = a + 1;
+- !EvalExpr
+  expression: print(reply)
+- !EvalExpr
+  expression: print(reply_nth(0))
+- !EvalExpr
+  expression: vin = loadfile("vin.bin"); print(vin);
+- !EvalExpr
+  expression: reply_nth(0) == 0x62
+- PrintLastReply
+- !RawUds
+  data: !BinFileName raw_file.bin
+- !RawUds
+  data: !EvalExprVarname request
+- !RawUds
+  data: !Bytes 22 f1 90
+- !ReadDID
+  did: 61840
+- !SleepMs 1000
+- !WhileLoop
+  condition: a < 3
+  steps:
+  - !ReadDID
+    did: 61840
+  - !EvalExpr
+    expression: a = a + 1;
+- !WriteDID
+  did: 61840
+  data: !Bytes 56 46 31 46 52 53 59 53 42 45 4e 43 48 30 31
+- !WriteDID
+  did: 61840
+  data: !BinFileName toto.bin
+- !WriteDID
+  did: 61840
+  data: !EvalExprVarname vin
+- !TransferDownload
+  compression_method: 1
+  encrypt_method: 0
+  addr: 16384
+  filename: FD01.bin
+  memorysize: 10240

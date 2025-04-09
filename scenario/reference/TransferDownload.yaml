@@ -1,0 +1,16 @@
+# TransferDownload.
+#
+# This is a meta instruction, which translate to :
+# - one TransferStart UDS command
+# - several TransferData UDS command(s)
+# - one TransferEnd UDS command
+
+# Form 1: Write a DID with an exact immediate value.
+#         All the values are the one required for the TransferStart.
+#         The input data for TransferData are read from the filename file.
+- !TransferDownload
+  compression_method: 1
+  encrypt_method: 0
+  addr: 16384
+  filename: FD01.bin
+  memorysize: 10240
