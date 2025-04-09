@@ -1,3 +1,8 @@
+use std::{
+    fs::File,
+    io::{self, Read},
+};
+
 use serde::{Deserialize, Serialize};
 
 pub type Steps = Vec<Step>;
@@ -6,8 +11,7 @@ pub type Steps = Vec<Step>;
 pub enum FileOrRawBytes {
     #[serde(with = "uds_raw_command")]
     Bytes(Vec<u8>),
-    #[serde(with = "bytes_bin_file")]
-    BinFileName(Vec<u8>),
+    BinFileName(String),
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -138,7 +142,17 @@ mod uds_raw_command {
     where
         S: Serializer,
     {
-        s.serialize_bytes(bytes)
+        use std::fmt::Write;
+
+        let mut str = String::new();
+        for &b in bytes {
+            let _ = write!(&mut str, " {:02x}", b);
+        }
+        if !bytes.is_empty() {
+            s.serialize_str(&str[1..])
+        } else {
+            s.serialize_str("")
+        }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -151,31 +165,19 @@ mod uds_raw_command {
     }
 }
 
-mod bytes_bin_file {
-    use serde::{self, Deserialize, Deserializer, Serializer};
-    use std::fs::File;
-    use std::io::{self, Read};
+impl FileOrRawBytes {
+    pub fn get_bytes(&self) -> Result<Vec<u8>, io::Error> {
+        match self {
+            FileOrRawBytes::Bytes(vec) => Ok(vec.clone()),
+            FileOrRawBytes::BinFileName(filename) => Self::read_file(filename),
+        }
+    }
 
-    fn read_file(filename: String) -> Result<Vec<u8>, io::Error> {
+    fn read_file(filename: &str) -> Result<Vec<u8>, io::Error> {
         let mut file = File::open(filename)?;
         let mut res = vec![];
         let _ = file.read_to_end(&mut res)?;
         Ok(res)
-    }
-
-    pub fn serialize<S>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        s.serialize_bytes(bytes)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let filename: String = String::deserialize(deserializer)?;
-        read_file(filename).map_err(|_| serde::de::Error::custom("File not found"))
     }
 }
 

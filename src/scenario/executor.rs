@@ -271,13 +271,10 @@ async fn read_supported_dtc(
 }
 
 async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), ScenarioError> {
-    let data = match wdid.data {
-        parser::FileOrRawBytes::Bytes(ref bytes) => bytes,
-        parser::FileOrRawBytes::BinFileName(ref bytes) => bytes,
-    };
+    let user_data = wdid.data.get_bytes()?;
     let req = message::WriteDIDReq {
         did: wdid.did,
-        user_data: data.to_vec(),
+        user_data,
     };
     let uds = UdsMessage::WriteDIDReq(req);
     request_response(ctxt, uds).await
