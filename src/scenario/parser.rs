@@ -221,6 +221,7 @@ mod evalexpression {
         })
     }
 }
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -263,5 +264,85 @@ mod test {
             steps: vec![step1, step2, step3, step4, step6, step7, step8],
         };
         to_writer(&io::stdout(), &scenario).unwrap();
+    }
+
+    #[test]
+    fn generate_references() {
+        use std::io;
+
+        let steps = generate_all_possible_steps();
+        let scenario1 = Scenario { steps };
+        to_writer(&io::stdout(), &scenario1).unwrap();
+
+        // Check bijection of yaml and deserialized structure
+        use std::io::Cursor;
+        let mut str1: Vec<u8> = vec![];
+        to_writer(Cursor::new(&mut str1), &scenario1).unwrap();
+        let scenario2: Scenario = serde_yaml::from_reader(Cursor::new(&mut str1)).unwrap();
+        assert_eq!(&scenario1.steps, &scenario2.steps);
+    }
+
+    fn generate_all_possible_steps() -> Steps {
+        vec![
+            Step::AbortIfNrc(AbortIfNrc { nrc: Some(0x10) }),
+            Step::AbortIfNrc(AbortIfNrc { nrc: None }),
+            Step::DisconnectDoIp(DisconnectDoIp {
+                wait_after_ms: Some(1000),
+            }),
+            Step::DisconnectDoIp(DisconnectDoIp {
+                wait_after_ms: None,
+            }),
+            Step::EvalExpr(EvalExpr {
+                expression: "a = a + 1;".try_into().unwrap(),
+            }),
+            Step::EvalExpr(EvalExpr {
+                expression: "print(reply)".try_into().unwrap(),
+            }),
+            Step::EvalExpr(EvalExpr {
+                expression: "print(reply_nth(0))".try_into().unwrap(),
+            }),
+            Step::EvalExpr(EvalExpr {
+                expression: "vin = loadfile(\"vin.bin\"); print(vin);"
+                    .try_into()
+                    .unwrap(),
+            }),
+            Step::EvalExpr(EvalExpr {
+                expression: "reply_nth(0) == 0x62".try_into().unwrap(),
+            }),
+            Step::PrintLastReply,
+            Step::RawUds(RawUds {
+                uds_bytes: vec![0x22, 0xf1, 0x90],
+            }),
+            Step::ReadDID(ReadDID { did: 0xf190 }),
+            Step::SleepMs(1000),
+            Step::WhileLoop(WhileLoop {
+                condition: evalexpression::Expression::try_from("a < 3").unwrap(),
+                steps: vec![
+                    Step::ReadDID(ReadDID { did: 0xf190 }),
+                    Step::EvalExpr(EvalExpr {
+                        expression: evalexpression::Expression::try_from("a = a + 1;").unwrap(),
+                    }),
+                ],
+            }),
+            Step::WriteDID(WriteDID {
+                did: 0xf190,
+                data: FileOrRawBytes::Bytes("VF1FRSYSBENCH01".as_bytes().to_vec()),
+            }),
+            Step::WriteDID(WriteDID {
+                did: 0xf190,
+                data: FileOrRawBytes::BinFileName("toto.bin".to_string()),
+            }),
+            Step::WriteDID(WriteDID {
+                did: 0xf190,
+                data: RawBytes::EvalExprVarname("vin".to_string()),
+            }),
+            Step::TransferDownload(TransferDownload {
+                compression_method: 0x01,
+                encrypt_method: 0x0,
+                addr: 0x4000,
+                filename: "FD01.bin".to_string(),
+                memorysize: 10240,
+            }),
+        ]
     }
 }
