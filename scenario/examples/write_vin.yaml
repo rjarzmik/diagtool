@@ -1,0 +1,60 @@
+# Write VIN examples
+#
+# This will be a collection of examples which utimately do the same thing :
+# write a VIN to the ECU, the VIN being "VF1R".
+#
+
+# Form 1: the normal way.
+- !WriteDID
+  did: 0xf190
+  data: !Bytes 56 46 31 52
+
+# Form 2: the file way.
+# "echo -n "VF1R" > vin.bin
+- !WriteDID
+  did: 0xf190
+  data: !BinFileName vin.bin
+
+# Form 3: the evalexpr way
+- !EvalExpr
+  expression: vin = (0x56, 0x46, 0x31, 0x52);
+- !WriteDID
+  did: 0xf190
+  data: !EvalExprVarname vin
+
+# Form 3: the evalexpr way, but with a string
+- !EvalExpr
+  expression: vin2 = "VF1R";
+- !WriteDID
+  did: 0xf190
+  data: !EvalExprVarname vin2
+
+# Form 4: the RawUds way
+- !RawUds
+  data: !Bytes 2e f1 90 56 46 31 52
+
+# Form 5: the evalexpr way, reading for a file, but with a VIN alteration, the
+# "VF1R" becomming "VF1RB"
+# "echo -n "VF1R" > vin.bin
+- !EvalExpr
+  expression: vin3 = loadfile("vin.bin"); vin4 = if(len(vin) >= 4, (vin3, "B"), vin3);
+- !WriteDID
+  did: 0xf190
+  data: !EvalExprVarname vin4
+
+# Form 6: waiting for the file to have a vin inside way
+#
+# This one is tricky: it assumes the file vin.bin exists, but is empty (ie. 0
+# bytes). It will loop reading this file every 1s, until the content changes and
+# is more that 0 bytes. Then it will write the VIN.
+- !EvalExpr
+  expression: vin = loadfile("vin_maybe.bin");
+- !WhileLoop
+  condition: len(vin) < 1
+  steps:
+  - !SleepMs 1000
+  - !EvalExpr
+    expression: vin = loadfile("vin_maybe.bin");
+- !WriteDID
+  did: 0xf190
+  data: !EvalExprVarname vin
