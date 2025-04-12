@@ -189,7 +189,9 @@ mod configfile {
     use serde_yaml::from_reader;
 
     pub(super) fn read_file(filename: &str) -> Options {
-        let f = std::fs::File::open(filename).unwrap();
+        let f = std::fs::File::open(filename)
+            .inspect_err(|err| println!("Can't open configuration file {filename}: {err}"))
+            .unwrap();
         let opts: Options = from_reader(f).unwrap();
         opts
     }
