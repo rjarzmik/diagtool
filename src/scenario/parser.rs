@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 pub type Steps = Vec<Step>;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub enum FileOrRawBytes {
+pub enum RawBytes {
     #[serde(with = "uds_raw_command")]
     Bytes(Vec<u8>),
     BinFileName(String),
+    EvalExprVarname(String),
 }
 
 #[derive(Serialize, Deserialize, PartialEq)]
@@ -52,8 +53,7 @@ pub struct EvalExpr {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct RawUds {
-    #[serde(with = "uds_raw_command")]
-    pub uds_bytes: Vec<u8>,
+    pub data: RawBytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -67,7 +67,7 @@ pub struct ReadSupportedDTC {}
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct WriteDID {
     pub did: u16,
-    pub data: FileOrRawBytes,
+    pub data: RawBytes,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -165,11 +165,15 @@ mod uds_raw_command {
     }
 }
 
-impl FileOrRawBytes {
-    pub fn get_bytes(&self) -> Result<Vec<u8>, io::Error> {
+impl RawBytes {
+    pub fn get_bytes(
+        &self,
+        get_variable: impl FnOnce(&str) -> Result<Vec<u8>, io::Error>,
+    ) -> Result<Vec<u8>, io::Error> {
         match self {
-            FileOrRawBytes::Bytes(vec) => Ok(vec.clone()),
-            FileOrRawBytes::BinFileName(filename) => Self::read_file(filename),
+            RawBytes::Bytes(vec) => Ok(vec.clone()),
+            RawBytes::BinFileName(filename) => Self::read_file(filename),
+            RawBytes::EvalExprVarname(varname) => get_variable(varname),
         }
     }
 
@@ -311,7 +315,13 @@ mod test {
             }),
             Step::PrintLastReply,
             Step::RawUds(RawUds {
-                uds_bytes: vec![0x22, 0xf1, 0x90],
+                data: RawBytes::BinFileName("raw_file.bin".to_string()),
+            }),
+            Step::RawUds(RawUds {
+                data: RawBytes::EvalExprVarname("request".to_string()),
+            }),
+            Step::RawUds(RawUds {
+                data: RawBytes::Bytes(vec![0x22, 0xf1, 0x90]),
             }),
             Step::ReadDID(ReadDID { did: 0xf190 }),
             Step::SleepMs(1000),
@@ -326,11 +336,11 @@ mod test {
             }),
             Step::WriteDID(WriteDID {
                 did: 0xf190,
-                data: FileOrRawBytes::Bytes("VF1FRSYSBENCH01".as_bytes().to_vec()),
+                data: RawBytes::Bytes("VF1FRSYSBENCH01".as_bytes().to_vec()),
             }),
             Step::WriteDID(WriteDID {
                 did: 0xf190,
-                data: FileOrRawBytes::BinFileName("toto.bin".to_string()),
+                data: RawBytes::BinFileName("toto.bin".to_string()),
             }),
             Step::WriteDID(WriteDID {
                 did: 0xf190,

@@ -247,7 +247,9 @@ async fn request_response(ctxt: &mut Context, uds: UdsMessage) -> Result<(), Sce
 
 async fn uds_raw(ctxt: &mut Context, ruds: &parser::RawUds) -> Result<(), ScenarioError> {
     let req = message::RawUds {
-        data: ruds.uds_bytes.clone(),
+        data: ruds
+            .data
+            .get_bytes(|varname| ctxt.eval_expr.get_tuple_variable(varname))?,
     };
     let uds = UdsMessage::RawUds(req);
     request_response(ctxt, uds).await
@@ -271,7 +273,9 @@ async fn read_supported_dtc(
 }
 
 async fn write_did(ctxt: &mut Context, wdid: &parser::WriteDID) -> Result<(), ScenarioError> {
-    let user_data = wdid.data.get_bytes()?;
+    let user_data = wdid
+        .data
+        .get_bytes(|varname| ctxt.eval_expr.get_tuple_variable(varname))?;
     let req = message::WriteDIDReq {
         did: wdid.did,
         user_data,

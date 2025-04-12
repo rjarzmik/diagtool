@@ -7,4 +7,12 @@
 
 # Form 1: Equivalent of ReadDID did: 0xf190
 - !RawUds
-  uds_bytes: 22 f1 90
+  data: !Bytes 22 f1 90
+
+# Form 2: Get the UDS command from raw_file.bin, and send it
+- !RawUds
+  data: !BinFileName raw_file.bin
+
+# Form 3: Get the UDS command from a variable computed by a EvalExpr expression
+- !RawUds
+  data: !EvalExprVarname request

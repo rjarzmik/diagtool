@@ -69,7 +69,7 @@ async fn main() {
         if !commands.is_empty() {
             for command in commands {
                 steps.push(Step::RawUds(scenario::parser::RawUds {
-                    uds_bytes: command,
+                    data: scenario::parser::RawBytes::Bytes(command),
                 }));
             }
         }
