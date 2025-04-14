@@ -8,6 +8,9 @@ use tokio::time::{self, Duration};
 mod argparse;
 mod scenario;
 
+#[cfg(test)]
+mod tests;
+
 async fn discover_doip_entities(
     local_addr: SocketAddr,
     broadcast_addr: SocketAddr,
