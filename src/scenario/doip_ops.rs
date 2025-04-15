@@ -18,8 +18,11 @@ pub enum ScenarioMessage {
 }
 
 pub struct DoIpConnection {
-    connection: DoIpTcpConnection,
+    connection: Option<DoIpTcpConnection>,
     la: LogicalAddress,
+    local_addr: SocketAddr,
+    remote_addr: SocketAddr,
+    timings: Timings,
     notify_new_cnx: bool,
     notify_doip_routed: bool,
     ack_buffer_holder: Option<Vec<u8>>,
@@ -37,10 +40,14 @@ impl DoIpConnection {
             routing_activation_rsp: Duration::from_secs(1),
         };
         let connection =
-            DoIpTcpConnection::connect_doip_tcp(local_addr, remote_addr, la, timings).await?;
+            DoIpTcpConnection::connect_doip_tcp(local_addr, remote_addr, la, timings.clone())
+                .await?;
         Ok(DoIpConnection {
-            connection,
+            connection: Some(connection),
             la,
+            local_addr,
+            remote_addr,
+            timings,
             notify_new_cnx: false,
             notify_doip_routed: false,
             ack_buffer_holder: Some(vec![]),
@@ -78,7 +85,19 @@ impl DoIpConnection {
     }
 
     pub async fn reconnect(&mut self) -> Result<(), ScenarioError> {
-        self.connection = self.connection.reconnect_doip_tcp().await?;
+        if let Some(old) = self.connection.take() {
+            drop(old);
+            let connection = DoIpTcpConnection::connect_doip_tcp(
+                self.local_addr,
+                self.remote_addr,
+                self.la,
+                self.timings.clone(),
+            )
+            .await?;
+            self.notify_new_cnx = true;
+            self.notify_doip_routed = true;
+            self.connection = Some(connection);
+        }
         Ok(())
     }
 }
@@ -88,6 +107,8 @@ async fn doip_scenario_receive(cnx: &mut DoIpConnection) -> Result<ScenarioMessa
     loop {
         let msg = cnx
             .connection
+            .as_mut()
+            .unwrap() // Here connection cannot be None
             .receive_message(|_, size| {
                 let mut v = buffer_holder.take().unwrap();
                 v.resize(size, 0);
@@ -120,7 +141,11 @@ async fn doip_scenario_receive(cnx: &mut DoIpConnection) -> Result<ScenarioMessa
 }
 
 async fn send_alive_check_rsp(cnx: &mut DoIpConnection) -> Result<(), ScenarioError> {
-    cnx.connection.send_alive_check_response(cnx.la).await?;
+    cnx.connection
+        .as_mut()
+        .unwrap() // Cannot be None
+        .send_alive_check_response(cnx.la)
+        .await?;
     Ok(())
 }
 
@@ -134,7 +159,7 @@ async fn send_uds(
         .map_err(|_| ScenarioError::UnexpectedUdsMessage(uds_req))?;
 
     let ack = doip_rw_tokio::send_uds(
-        &mut cnx.connection,
+        cnx.connection.as_mut().unwrap(), // Cannot be None
         ta,
         UdsBuffer::Borrowed(&uds_bytes),
         |_, size| {
