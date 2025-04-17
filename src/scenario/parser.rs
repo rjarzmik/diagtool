@@ -90,15 +90,26 @@ pub fn read_scenario(filename: &str) -> Steps {
     configfile::read_file(filename)
 }
 
+#[allow(dead_code)]
+pub fn read_scenario_str(s: &str) -> Steps {
+    configfile::read_str(s)
+}
+
 mod configfile {
     use super::Steps;
     use serde_yaml::from_reader;
+    use std::io;
 
     pub(super) fn read_file(filename: &str) -> Steps {
         let f = std::fs::File::open(filename)
             .inspect_err(|err| println!("Can't open configuration file {filename}: {err}"))
             .unwrap();
         let steps: Steps = from_reader(f).unwrap();
+        steps
+    }
+
+    pub(super) fn read_str(s: &str) -> Steps {
+        let steps: Steps = from_reader(io::Cursor::new(s)).unwrap();
         steps
     }
 }
