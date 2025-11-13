@@ -1,0 +1,16 @@
+# RequestFileUpload.
+#
+# Launches a transfer of a file from the client to the server.
+# This is also known as UDS service 0x38, OperationMode AddFile.
+
+# Form 1: Launch of file transfer.
+#         All the values are the one required for the RequestFileTransfer
+#         The local_filename will be created, and written to with data from
+#         the server, on which remote_filename will be used as a data source
+- !RequestFileUpload
+  compression_method: 1
+  encrypt_method: 7
+  local_filename: FD01.bin
+  remote_filename: /tmp/FD01.bin
+  file_size_compressed: 9
+  file_size_uncompressed: 26

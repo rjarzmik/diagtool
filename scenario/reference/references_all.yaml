@@ -48,3 +48,15 @@
   addr: 16384
   filename: FD01.bin
   memorysize: 10240
+- !RequestFileDownload
+  compression_method: 1
+  encrypt_method: 7
+  local_filename: FD01.bin
+  remote_filename: /tmp/FD01.bin
+- !RequestFileUpload
+  compression_method: 1
+  encrypt_method: 7
+  local_filename: FD01.bin
+  remote_filename: /tmp/FD01.bin
+  file_size_compressed: 9
+  file_size_uncompressed: 26

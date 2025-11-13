@@ -12,7 +12,7 @@ use tokio::{net::TcpListener, task};
 
 use doip_rw_tokio::{DoIpTcpConnection, Timings};
 
-const UDS_ANSWERS: [(&str, &str); 7] = [
+const UDS_ANSWERS: [(&str, &str); 9] = [
     (
         r"22f012",
         "62 f0 12 32 36 34 31 33 30 30 35 30 30 52 31", //"62140350001R"
@@ -25,8 +25,11 @@ const UDS_ANSWERS: [(&str, &str); 7] = [
     (r"19 0a", "59 0a ff ea 19 88 00 fd 01 50"),
     // Transfer file:
     (r"34.*", "74 20 0f fa"),
-    (r"36.*", "76 01"),
+    (r"36.*", "76 01 08 08"),
     (r"37.*", "77"),
+    // RequestFileTransfer
+    (r"38 04.*", "78 04 02 10 22 12 00 02 00 03 00 02"), // Download
+    (r"38 01.*", "78 04 02 10 22 12 00 02 00 03 00 02"), // Upload
 ];
 
 fn print_uds_request(prefix: &str, req: &[u8]) {

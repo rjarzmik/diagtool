@@ -29,6 +29,8 @@ pub enum Step {
     RawUds(RawUds),
     ReadDID(ReadDID),
     ReadSupportedDTC(ReadSupportedDTC),
+    RequestFileUpload(RequestFileUpload),
+    RequestFileDownload(RequestFileDownload),
     SleepMs(usize),
     WhileLoop(WhileLoop),
     WriteDID(WriteDID),
@@ -63,6 +65,24 @@ pub struct ReadDID {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct ReadSupportedDTC {}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct RequestFileDownload {
+    pub compression_method: u8,
+    pub encrypt_method: u8,
+    pub local_filename: String,
+    pub remote_filename: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct RequestFileUpload {
+    pub compression_method: u8,
+    pub encrypt_method: u8,
+    pub local_filename: String,
+    pub remote_filename: String,
+    pub file_size_compressed: usize,
+    pub file_size_uncompressed: usize,
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct WriteDID {

@@ -7,6 +7,8 @@ mod evalexpr;
 mod printlastreply;
 mod rawuds;
 mod readdid;
+mod requestfiledownload;
+mod requestfileupload;
 mod sleepms;
 mod transferdownload;
 mod whileloop;

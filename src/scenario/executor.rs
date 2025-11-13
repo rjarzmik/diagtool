@@ -5,7 +5,7 @@ use evalexpr::{
 use log::{debug, info};
 use pretty_hex::pretty_hex;
 use std::future::Future;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tokio::time::{self, Duration};
@@ -49,6 +49,8 @@ fn execute_step<'b: 'a, 'a>(
             RawUds(ruds) => uds_raw(ctxt, ruds).await?,
             ReadDID(did) => read_did(ctxt, did).await?,
             ReadSupportedDTC(dtc) => read_supported_dtc(ctxt, dtc).await?,
+            RequestFileDownload(rfd) => request_file_download(ctxt, rfd).await?,
+            RequestFileUpload(rfu) => request_file_upload(ctxt, rfu).await?,
             SleepMs(time_ms) => sleep_ms(ctxt, *time_ms).await?,
             WhileLoop(wl) => {
                 if while_loop(ctxt, wl).await? {
@@ -155,11 +157,66 @@ fn expect_reply(ctxt: &Context, request_sid: u8) -> Result<(), ScenarioError> {
     Ok(())
 }
 
+async fn request_file_download(
+    ctxt: &mut Context,
+    rfd: &parser::RequestFileDownload,
+) -> Result<(), ScenarioError> {
+    let req = message::RequestFileTransferReq {
+        mode_of_operation: message::ModeOfOperation::ReadFile,
+        compression_method: rfd.compression_method,
+        encryption_method: rfd.encrypt_method,
+        path_name: rfd.remote_filename.clone(),
+        file_size_bytes: 4,
+        file_size_uncompressed: 0,
+        file_size_compressed: 0,
+    };
+    let uds_req = UdsMessage::RequestFileTransferReq(req);
+    let req_sid: u8 = (&uds_req).into();
+    request_response(ctxt, uds_req).await?;
+    expect_reply(ctxt, req_sid)?;
+
+    let file_size_compressed = if let UdsMessage::RequestFileTransferRsp(rsp) = &ctxt.last_uds_reply
+    {
+        rsp.file_size_compressed
+    } else {
+        panic!("Impossible case, please contact the developper");
+    };
+    let mut file = std::fs::File::create(&rfd.local_filename)?;
+    upload_file_blocks(ctxt, &mut file, file_size_compressed).await
+}
+
+async fn request_file_upload(
+    ctxt: &mut Context,
+    rfu: &parser::RequestFileUpload,
+) -> Result<(), ScenarioError> {
+    let req = message::RequestFileTransferReq {
+        mode_of_operation: message::ModeOfOperation::AddFile,
+        compression_method: rfu.compression_method,
+        encryption_method: rfu.encrypt_method,
+        path_name: rfu.remote_filename.clone(),
+        file_size_bytes: 4,
+        file_size_uncompressed: rfu.file_size_uncompressed,
+        file_size_compressed: rfu.file_size_compressed,
+    };
+    let uds_req = UdsMessage::RequestFileTransferReq(req);
+    let req_sid: u8 = (&uds_req).into();
+    request_response(ctxt, uds_req).await?;
+    expect_reply(ctxt, req_sid)?;
+
+    let max_block_size = if let UdsMessage::RequestFileTransferRsp(rsp) = &ctxt.last_uds_reply {
+        rsp.max_block_size
+    } else {
+        panic!("Impossible case, please contact the developper");
+    };
+
+    let mut file = std::fs::File::open(&rfu.local_filename)?;
+    download_file_blocks(ctxt, &mut file, max_block_size).await
+}
+
 async fn transfer_download(
     ctxt: &mut Context,
     td: &parser::TransferDownload,
 ) -> Result<(), ScenarioError> {
-    let mut file = std::fs::File::open(&td.filename)?;
     let req = message::RequestDownloadReq {
         compression_method: td.compression_method,
         encryption_method: td.encrypt_method,
@@ -179,6 +236,15 @@ async fn transfer_download(
         panic!("Impossible case, please contact the developper");
     };
 
+    let mut file = std::fs::File::open(&td.filename)?;
+    download_file_blocks(ctxt, &mut file, max_block_size).await
+}
+
+async fn download_file_blocks(
+    ctxt: &mut Context,
+    file: &mut std::fs::File,
+    max_block_size: usize,
+) -> Result<(), ScenarioError> {
     let mut req0 = message::TransferDataReq {
         block_sequence_counter: 1,
         // max_block_size is : SID (1 byte) + block_seq_counter (1 byte)
@@ -194,6 +260,47 @@ async fn transfer_download(
         request_response(ctxt, uds_req).await?;
         expect_reply(ctxt, req_sid)?;
         if nb < req0.data.len() {
+            break;
+        }
+    }
+
+    let req = message::TransferExitReq { user_data: vec![] };
+    let uds_req = UdsMessage::TransferExitReq(req);
+    let req_sid: u8 = (&uds_req).into();
+    request_response(ctxt, uds_req).await?;
+    expect_reply(ctxt, req_sid)?;
+
+    Ok(())
+}
+
+async fn upload_file_blocks(
+    ctxt: &mut Context,
+    file: &mut std::fs::File,
+    file_size: usize,
+) -> Result<(), ScenarioError> {
+    let mut written: usize = 0;
+    let mut req0 = message::TransferDataReq {
+        block_sequence_counter: 1,
+        // max_block_size is : SID (1 byte) + block_seq_counter (1 byte)
+        data: vec![],
+    };
+    loop {
+        let req = req0.clone();
+        req0.block_sequence_counter = req0.block_sequence_counter.checked_add(1).unwrap_or(0);
+        let uds_req = UdsMessage::TransferDataReq(req);
+        let req_sid: u8 = (&uds_req).into();
+        request_response(ctxt, uds_req).await?;
+        expect_reply(ctxt, req_sid)?;
+
+        let nb = if let UdsMessage::TransferDataRsp(rsp) = &ctxt.last_uds_reply {
+            file.write_all(&rsp.data)?;
+            rsp.data.len()
+        } else {
+            panic!("Impossible case, please contact the developper");
+        };
+
+        written += nb;
+        if written >= file_size {
             break;
         }
     }

@@ -1,0 +1,13 @@
+# RequestFileDownload.
+#
+# Launches a transfer of a file from the remote to the client.
+# This is also known as UDS service 0x38, OperationMode ReadFile.
+
+# Form 1: Launch of file transfer.
+#         All the values are the one required for the RequestFileTransfer
+#         The local_filename will be opened, read and sent to the server
+- !RequestFileDownload
+  compression_method: 1
+  encrypt_method: 7
+  local_filename: FD01.bin
+  remote_filename: /tmp/FD01.bin
